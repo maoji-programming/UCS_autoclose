@@ -1,0 +1,6 @@
+{
+    "page_load": 120,
+    "otp_wait": 20,
+    "request_delay": 3,
+    "retry_delay": 3
+}

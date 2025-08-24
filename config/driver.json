@@ -1,0 +1,4 @@
+{
+    "chrome_path": "path/to/the/chrome.exe",
+    "driver_path": "./driver/chromedriver.exe"
+}

@@ -1,0 +1,5 @@
+{
+    "login_url": "https://ucs-am.asus.com/login",
+    "dashboard_url": "https://ucs-am.asus.com/sip/dashboard",
+    "api_base_url": "https://ucs-am.asus.com"
+}

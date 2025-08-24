@@ -1,0 +1,10 @@
+./driver/chromedriver.exe
+./driver/LICENSE.chromedriver
+./driver/THIRD_PARTY_NOTICES.chromedriver
+./.vscode/
+./__pycache__/
+./venv/
+./*.pyc
+./logs/
+./output/
+./config.yaml

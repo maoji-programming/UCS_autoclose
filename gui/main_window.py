@@ -17,8 +17,8 @@ class MainWindow(tk.Tk):
             'waiting': 0
         }
         self.title("RMA Incident Closer")
-        self.geometry("600x800")
-        self.minsize(600, 800)
+        self.geometry("600x600")
+        self.minsize(600, 600)
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.config = AppConfig.get_instance()

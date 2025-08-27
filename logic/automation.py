@@ -11,12 +11,12 @@ import time
 import traceback
 class Ticket:
     def __init__(self, org_sn, record):        
-        self.close_date = time.strftime("%Y-%m-%d")
+        self.close_date = time.strftime("%d/%m/%Y")
         self._org_sn = org_sn
         self._new_sn = record[1]
         self._isECN =  record[2] == "ECN"
-        self.org_pn = None
-        self.rma_number = None
+        self._org_pn = None
+        self._rma_number = None
     
     @property    
     def org_pn(self):
@@ -39,7 +39,7 @@ class Ticket:
         return self._isECN
 
     def __str__(self):
-        return ""
+        return f"{self._org_sn}\t{self._new_sn}\t{self._rma_number}\tclosed\t{self.close_date}\t{"f" if self.isECN else ""}\t{"Send to ECN(pass)"if self.isECN else ""}\n"
 
 class Automation:
 
@@ -105,17 +105,8 @@ class Automation:
                 return False
         except NoSuchElementException:
             # If not found, no error - ticket likely exists
+            print("Ticket found.")
             return True
-    def __isECN(self):
-
-        """
-        Check the ticket type to determine if it is an ECN (Engineering Change Notice).
-        If there is a mandatory item in ECN list, return True.
-
-
-        """
-        
-        return False
 
     def search(self, sn):
         try:
@@ -131,10 +122,10 @@ class Automation:
             #self.progress_queue.put(("log", f"Search error: {search_error}", "error"))
             return False
         return True
-    def append_record_to_excel_txt(self, ticket, status, failure_reason, file_path='../EXCEL.txt'):
-        row = f"{ticket.org_sn}\t{ticket.new_sn}\t{ticket.rma_number}\tclosed\t{ticket.close_date}\t{status}\t{failure_reason}\n"
+    def __append_record_to_excel_txt(self, ticket, file_path):
+        #row = f"{ticket.org_sn}\t{ticket.new_sn}\t{ticket.rma_number}\tclosed\t{ticket.close_date}\t{ticket.is}\t{failure_reason}\n"
         with open(file_path, 'a', encoding='utf-8') as file:
-            file.write(row)
+            file.write(str(ticket))
 
     def __add_memo(self,msg):
         time.sleep(self.config['request_delay'])
@@ -241,7 +232,7 @@ class Automation:
         time.sleep(self.config['request_delay'])
         confirmed_ECN = False
         try:
-            wait = WebDriverWait(self.driver, 10)
+            wait = WebDriverWait(self.driver, 5)
         # Find the <tr> element
             row_action = self.driver.find_element(By.XPATH, "/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[1]")
             # Get the text content of the element
@@ -313,17 +304,15 @@ class Automation:
         }
 
         wait = WebDriverWait(self.driver, self.config['page_load'])
-        #Add Repair Detail: /repair/operation/rma/create/repair_common.static.general.repair_repair.static.repair.repairDetail_common.static.general.add
+        #Add Repair Detail:
         wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_common.static.general.repair_repair.static.repair.repairDetail_common.static.general.add"))).click()
 
-        #1./repair/operation/rma/create/repair_Add Repair Detail_claimGroup
         f1 = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_Add Repair Detail_claimGroup")))
         time.sleep(1)
         f1.send_keys(detail["f1"])
         f1.send_keys(Keys.DOWN)
         f1.send_keys(Keys.ENTER)
 
-        #2. /repair/operation/rma/create/repair_Add Repair Detail_claimCode
         f2 = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_Add Repair Detail_claimCode")))
         time.sleep(1)
         f2.send_keys(detail["f2"])
@@ -349,7 +338,7 @@ class Automation:
         f5.send_keys(Keys.ENTER)
 
         f6 = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_Add Repair Detail_actionCode")))
-        time.sleep(0.5)
+        time.sleep(1)
         f6.send_keys(detail["f6"])
         f6.send_keys(Keys.DOWN)
         f6.send_keys(Keys.ENTER)
@@ -360,32 +349,47 @@ class Automation:
         pn.send_keys(Keys.DOWN)
         pn.send_keys(Keys.ENTER)
         #Save Repair Detail
-        if False:
-            save_detail = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_Add Repair Detail_common.static.general.submit")))
-            save_detail.click()
+        save_detail = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_Add Repair Detail_common.static.general.submit")))
+        time.sleep(0.5)
+        save_detail.click()
+
+    def __submit_repair(self):
+        time.sleep(self.config['request_delay'])
+        wait = WebDriverWait(self.driver, self.config['page_load'])
+        submit = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/repair_[object Object]_repair.static.general.next")))
+        submit.click()
+
+    
+    def __submit_finaltest(self):
+        time.sleep(self.config['request_delay'])
+        wait = WebDriverWait(self.driver, self.config['page_load'])
+        confirm = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/repair_[object Object]_repair.static.general.next")))
+        confirm.click()
+        pass
 
     def close_normal_ticket(self, ticket):
-        wait = WebDriverWait(self.driver, self.config['page_load'])
-        #self.__process_IRN()
-        time.sleep(self.config['request_delay'])
-        #self.__process_ECN(ticket)
-
-
-        # Delay between requests
-        time.sleep(self.config['request_delay'])
-        #self.__add_repair_detail()
-        time.sleep(self.config['request_delay'])
-        #self.__add_memo("Send to ECN(pass)")
-
         
-
-    def close_ecn_ticket(self, ticket):
-        wait = WebDriverWait(self.driver, self.config['page_load'])
         self.__process_IRN()
         self.__process_ECN(ticket)
-        self.__add_memo("Send to ECN(pass)")
         self.__add_repair_detail(ticket)
+        self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
+        self.__submit_repair()
+        self.__submit_finaltest()
+
+    # Delay between requests
+    def close_ecn_ticket(self, ticket):
+        if False:
+            self.__process_IRN()
+            self.__process_ECN(ticket)
+            self.__add_memo("Send to ECN(pass)")
+            self.__add_repair_detail(ticket)
         
+        self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
+        if False:
+            self.__submit_repair()
+            self.__confirm_finaltest()
+            self.__submit_finaltest()
+
 
 
         '''
@@ -406,7 +410,7 @@ class Automation:
                     - Claim Group: [NBZU00] Software / OS error
                     - Claim Code: [NBZU99] Other OS(Software) issues
                     - Problem Group: [N0Z000] Test ok
-                    - Problem Code: [N0Z000]Test ok
+                    - Problem Code: [N0Z000] Test ok
                     - Action Group: [N] NTF
                     - Action Code: [N05] Cannot duplicate the symptom
             5b. If it is an ECN Pass, Do the following:

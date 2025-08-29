@@ -62,12 +62,18 @@ class Automation:
             webdriver.Chrome: An instance of the Chrome WebDriver after successful login.
         """
         print("start login...")
-        options = webdriver.ChromeOptions()
-        options.binary_location = chrome_path
-        print(driver_path)
-        service = Service(executable_path=driver_path)
-        self.driver = webdriver.Chrome(service=service, options=options)
-        
+        isChrome = True
+        if isChrome:
+            options = webdriver.ChromeOptions()
+            options.binary_location = chrome_path
+
+            service = Service(executable_path=driver_path)
+            self.driver = webdriver.Chrome(service=service, options=options)
+        else:
+            options = webdriver.EdgeOptions()
+            options.binary_location = chrome_path
+            service  = Service(executable_path=driver_path)
+            self.driver = webdriver.Edge(service=service, options=options)
         self.driver.get(self.config["login_url"])  # Replace with actual UCS login URL
         self.driver.maximize_window()
         # Locate username and password fields and login button
@@ -359,12 +365,31 @@ class Automation:
         submit = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/repair_[object Object]_repair.static.general.next")))
         submit.click()
 
-    
-    def __submit_finaltest(self):
-        time.sleep(self.config['request_delay'])
+
+    def __submit_finaltest(self,ticket):
+        time.sleep(6)
         wait = WebDriverWait(self.driver, self.config['page_load'])
-        confirm = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/repair_[object Object]_repair.static.general.next")))
+        
+
+        if not ticket.isECN:
+            # Check if WTP is finished
+            system_check = wait.until(EC.presence_of_element_located((By.XPATH,"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div[2]/div/div/div/div[1]/div/div/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr/td[6]/div/div/p")))
+            if "Not Finished" in system_check.text:
+                print("WTP Not finish")
+                raise Exception
+
+        confirm = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/finaltest_repair.static.general.finalTest_repair.static.finalTest.toDoTask_repair.static.finalTest.confirmResult")))
         confirm.click()
+        time.sleep(1)
+
+        submit_confirm = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/finaltest_repair.static.finalTest.confirmResult_repair.static.general.submitConfirm")))
+        submit_confirm.click()
+        time.sleep(1)
+
+        no = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/finaltest_Process Check_common.static.general.no")))
+        no.click()
+                
+        
         pass
 
     def close_normal_ticket(self, ticket):
@@ -372,23 +397,20 @@ class Automation:
         self.__process_IRN()
         self.__process_ECN(ticket)
         self.__add_repair_detail(ticket)
-        self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
         self.__submit_repair()
-        self.__submit_finaltest()
+        self.__submit_finaltest(ticket)
+        self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
 
     # Delay between requests
     def close_ecn_ticket(self, ticket):
-        if False:
-            self.__process_IRN()
-            self.__process_ECN(ticket)
-            self.__add_memo("Send to ECN(pass)")
-            self.__add_repair_detail(ticket)
-        
+
+        self.__process_IRN()
+        self.__process_ECN(ticket)
+        self.__add_memo("Send to ECN(pass)")
+        self.__add_repair_detail(ticket)
+        self.__submit_repair()
+        self.__submit_finaltest(ticket)
         self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
-        if False:
-            self.__submit_repair()
-            self.__confirm_finaltest()
-            self.__submit_finaltest()
 
 
 
@@ -435,12 +457,11 @@ class Automation:
             10. add a row of recoed in excel.txt with the following information:
                 - Org SN
                 - New SN
-                - New PN
-                - Ticket Type
-                - Status
+                - RMA Number
+                - UCS Status
                 - Closed Time
-                - Result
-                - Failure Reason (if any)
+                - Status
+                - Reason (if any)
 
         '''
 

@@ -97,7 +97,10 @@ class TicketWidget(ttk.Frame):
 
         self._create_single_tab()
         self._create_multiple_tab()
-        
+    
+    def __force_uppercase(self,*args):
+        self.org_sn_var.set(self.org_sn_var.get().upper())
+
     def _create_single_tab(self):
         frame = ttk.LabelFrame(self.single_tab, text="Close Single Ticket", padding=10)
         frame.pack(fill="x", padx=10, pady=10)
@@ -110,6 +113,7 @@ class TicketWidget(ttk.Frame):
         # Org SN
         ttk.Label(frame, text="Org SN (minimum last 5 digit):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
         self.org_sn_var = tk.StringVar()
+        self.org_sn_var.trace_add("write", self.__force_uppercase)
         ttk.Entry(frame, textvariable=self.org_sn_var).grid(row=1, column=1, padx=5, pady=5)
 
         # Radio Button

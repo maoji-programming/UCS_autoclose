@@ -11,7 +11,7 @@ import time
 import traceback
 class Ticket:
     def __init__(self, org_sn, record):        
-        self.close_date = time.strftime("%d/%m/%Y")
+        self.close_date = time.strftime("%m/%d/%Y")
         self._org_sn = org_sn
         self._new_sn = record[1]
         self._isECN =  record[2] == "ECN"
@@ -261,7 +261,7 @@ class Automation:
                         print(row_type.text)
                         if "Conditional" in row_type.text:
                             print("Do not match condition")
-                            row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
+                            row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[6]/div/div")))
                             row_action.click()
                             condi_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Does NOT match conditions')]")))
                             time.sleep(0.5)
@@ -269,7 +269,7 @@ class Automation:
 
                         elif "Mandatory" in row_type.text:
                             print("part shortage")
-                            row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
+                            row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[6]/div/div")))
                             row_action.click()
                             manda_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Parts shortage')]")))
                             time.sleep(0.5)

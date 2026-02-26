@@ -5,13 +5,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import *
 from tkinter import messagebox
 import time 
 import traceback
+
+from logic.exception import TicketTypeError, WTPImcompleteError
 class Ticket:
     def __init__(self, org_sn, record):        
-        self.close_date = time.strftime("%d/%m/%Y")
+        self.close_date = time.strftime("%m/%d/%Y")
         self._org_sn = org_sn
         self._new_sn = record[1]
         self._isECN =  record[2] == "ECN"
@@ -45,7 +47,6 @@ class Automation:
 
     def __init__(self, config):
         self.config = config
-        self.driver = None
         self.progress_queue = None
 
     def login(self,username, password, chrome_path, driver_path):
@@ -237,58 +238,54 @@ class Automation:
     def __process_ECN(self, ticket):
         time.sleep(self.config['request_delay'])
         confirmed_ECN = False
-        try:
-            wait = WebDriverWait(self.driver, 5)
-        # Find the <tr> element
-            row_action = self.driver.find_element(By.XPATH, "/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[1]")
-            # Get the text content of the element
-            if row_action is None:
-                return
-            row_text = row_action.text
+        
+        wait = WebDriverWait(self.driver, 5)
+    # Find the <tr> element
+        row_action = self.driver.find_element(By.XPATH, "/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[1]")
+        # Get the text content of the element
+        if row_action is None:
+            return
+        row_text = row_action.text
 
-            # Check if "No Data" is present in the text
-            if "No Data" in row_text:
-                print("The <tr> element contains 'No Data'.")
-            else:
-                r = 0
-                while True:
-                    try:
-                        r += 1
-                        print(f"row: {r}")
-                        #row_action =     self.driver.find_element(By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div/input")
-                        row_type = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[2]")))
-                        
-                        print(row_type.text)
-                        if "Conditional" in row_type.text:
-                            print("Do not match condition")
-                            row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
-                            row_action.click()
-                            condi_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Does NOT match conditions')]")))
-                            time.sleep(0.5)
-                            condi_select.click()
+        # Check if "No Data" is present in the text
+        if "No Data" in row_text:
+            print("The <tr> element contains 'No Data'.")
+            if ticket.isECN:
+                raise TicketTypeError("Ticket is not an ECN but user selected ECN.")
+        else:
+            r = 0
+            while True:
+                try:
+                    r += 1
+                    print(f"row: {r}")
+                    #row_action =     self.driver.find_element(By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div/input")
+                    row_type = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[2]")))
+                    
+                    print(row_type.text)
+                    if "Conditional" in row_type.text:
+                        print("Do not match condition")
+                        row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
+                        row_action.click()
+                        condi_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Does NOT match conditions')]")))
+                        time.sleep(0.5)
+                        condi_select.click()
 
-                        elif "Mandatory" in row_type.text:
-                            print("part shortage")
-                            row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
-                            row_action.click()
-                            manda_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Parts shortage')]")))
-                            time.sleep(0.5)
-                            manda_select.click()
-                            confirmed_ECN = True
+                    elif "Mandatory" in row_type.text:
+                        print("part shortage")
+                        row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
+                        row_action.click()
+                        manda_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Parts shortage')]")))
+                        time.sleep(0.5)
+                        manda_select.click()
+                        confirmed_ECN = True
 
-                        time.sleep(5)
-                    except TimeoutException:
-                        print("ECN Part done")
-                        break
-                if confirmed_ECN != ticket.isECN:
-                    print("Ticket type does not match the user selection. Please check whether it is an ECN case or not!")
-                    print(f"User Select:{" ECN " if ticket.isECN else " Normal "}, System shows:{" ECN " if confirmed_ECN else " Normal " }" )
-                    raise Exception
-            return True
-        except Exception as e:
-            print(f"An error occurred: {e}")
-            traceback.print_exc()
-            return False
+                    time.sleep(5)
+                except TimeoutException:
+                    print("ECN Part done")
+                    break
+            if confirmed_ECN != ticket.isECN:
+                raise TicketTypeError(f"User Select:{" ECN " if ticket.isECN else " Normal "}, System shows:{" ECN " if confirmed_ECN else " Normal " }" )
+
     def __add_repair_detail(self, ticket):
         time.sleep(self.config['request_delay'])
         detail = {
@@ -376,7 +373,7 @@ class Automation:
             system_check = wait.until(EC.presence_of_element_located((By.XPATH,"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div[2]/div/div/div/div[1]/div/div/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr/td[6]/div/div/p")))
             if "Not Finished" in system_check.text:
                 print("WTP Not finish")
-                raise Exception
+                raise WTPImcompleteError("WTP Not finish")
 
         confirm = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/finaltest_repair.static.general.finalTest_repair.static.finalTest.toDoTask_repair.static.finalTest.confirmResult")))
         confirm.click()
@@ -393,24 +390,27 @@ class Automation:
         pass
 
     def close_normal_ticket(self, ticket):
-        
-        self.__process_IRN()
-        self.__process_ECN(ticket)
-        self.__add_repair_detail(ticket)
-        self.__submit_repair()
-        self.__submit_finaltest(ticket)
-        self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
-
+        try:
+            self.__process_IRN()
+            self.__process_ECN(ticket)
+            self.__add_repair_detail(ticket)
+            self.__submit_repair()
+            self.__submit_finaltest(ticket)
+            self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
+        except Exception as e:
+            print(f"Error closing normal ticket {ticket._new_sn}: {str(e)}")
     # Delay between requests
     def close_ecn_ticket(self, ticket):
-
-        self.__process_IRN()
-        self.__process_ECN(ticket)
-        self.__add_memo("Send to ECN(pass)")
-        self.__add_repair_detail(ticket)
-        self.__submit_repair()
-        self.__submit_finaltest(ticket)
-        self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
+        try:
+            self.__process_IRN()
+            self.__process_ECN(ticket)
+            self.__add_memo("Send to ECN(pass)")
+            self.__add_repair_detail(ticket)
+            self.__submit_repair()
+            self.__submit_finaltest(ticket)
+            self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
+        except Exception as e:
+            print(f"Error closing normal ticket {ticket._new_sn}: {str(e)}")
 
 
 

@@ -1,10 +1,13 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, scrolledtext
 
-from gui.widgets.login_widget import LoginWidget
+
 import config as AppConfig
 from logic.automation import Automation
+
+from gui.widgets.login_widget import LoginWidget
 from gui.widgets.ticket_widget import TicketWidget
+from gui.widgets.log_widget import LogWidget
 
 class MainWindow(tk.Tk):
     def __init__(self):
@@ -22,6 +25,7 @@ class MainWindow(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.config = AppConfig.get_instance()
+        self.driver = None
         self.automation = Automation(self.config)
 
         # Configure style
@@ -71,6 +75,7 @@ class MainWindow(tk.Tk):
         """
         LoginWidget(self, self.config)
         TicketWidget(self, self.config)
+        LogWidget(self, self.config)
         
         
 

@@ -9,6 +9,7 @@ from selenium.common.exceptions import *
 from tkinter import messagebox
 import time 
 import traceback
+import winsound
 
 from logic.exception import TicketTypeError, WTPImcompleteError
 class Ticket:
@@ -385,7 +386,6 @@ class Automation:
 
         no = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/finaltest_Process Check_common.static.general.no")))
         no.click()
-                
         
         pass
 
@@ -397,8 +397,11 @@ class Automation:
             self.__submit_repair()
             self.__submit_finaltest(ticket)
             self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
+            winsound.PlaySound("SystemExit", winsound.SND_ALIAS) # Sound for Success
         except Exception as e:
+            print(f"Excel update String:\n {str(ticket)}\n\n")
             print(f"Error closing normal ticket {ticket._new_sn}: {str(e)}")
+            winsound.PlaySound("SystemHand", winsound.SND_ALIAS) # Sound for Error
     # Delay between requests
     def close_ecn_ticket(self, ticket):
         try:
@@ -409,9 +412,11 @@ class Automation:
             self.__submit_repair()
             self.__submit_finaltest(ticket)
             self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
+            winsound.PlaySound("SystemExit", winsound.SND_ALIAS) # Sound for Success
         except Exception as e:
-            print(f"Error closing normal ticket {ticket._new_sn}: {str(e)}")
-
+            print(f"Excel update String:\n {str(ticket)}\n\n")
+            print(f"Error closing ECN ticket {ticket._new_sn}: {str(e)}")
+            winsound.PlaySound("SystemHand", winsound.SND_ALIAS) # Sound for Error
 
 
         '''

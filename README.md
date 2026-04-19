@@ -94,4 +94,18 @@ Append a row to `excel.txt` with the following fields:
 - Excel logging capability
 
 ## 📬 Contact
-For issues or questions, please contact the support team or open an issue in this repository.
+For issues or questions, please contact please contact `John Cheung[maoji.programming@gmail.com]`.
+
+## ⚖️ License & Copyright
+
+**Copyright © 2025-2026 John Cheung. All rights reserved.**
+
+## 📝 Commercial Use Restriction
+This software is provided for personal, educational, and non-commercial use only. 
+
+**Commercial use, including but not limited to:**
+* Using this code within a for-profit company.
+* Selling the software or any derivative works.
+* Using the software to provide a paid service.
+
+...is **strictly prohibited** without prior written permission from the copyright holder. For commercial licensing inquiries, please contact `John Cheung[maoji.programming@gmail.com]`.

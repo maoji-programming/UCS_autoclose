@@ -3,11 +3,13 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
 class TicketWidget(ttk.Frame):
-    def __init__(self, parent, config, **kwargs):
+    def __init__(self, parent, config, automation, logger=None, **kwargs):
         super().__init__(parent)
         self.parent = parent
         self.pack(fill="both", expand=True)
         self.config = config
+        self.automation = automation
+        self.logger = logger
 
         self._create()
 
@@ -78,7 +80,7 @@ class TicketWidget(ttk.Frame):
         print("Single Tab - Org SN:", self.org_sn_var.get())
         print("Single Tab - New SN:", self.new_sn_var.get())
         print("Pass Type:", self.pass_type_var.get())
-        self.parent.automation.close_ticket(self.batch_records)
+        self.automation.close_ticket(self.batch_records)
 
     def _create(self):
         ticket_frame = ttk.LabelFrame(self.parent, text="Step 2. Close Ticket")

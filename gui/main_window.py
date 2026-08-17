@@ -21,12 +21,12 @@ class MainWindow(tk.Tk):
         }
         self.title("RMA Incident Closer")
         self.geometry("600x600")
-        self.minsize(600, 600)
+        self.minsize(800, 600)
 
         self.protocol("WM_DELETE_WINDOW", self.on_close)
         self.config = AppConfig.get_instance()
         self.driver = None
-        self.automation = Automation(self.config)
+        self.automation = None
 
         # Configure style
         self.setup_styles()
@@ -73,9 +73,23 @@ class MainWindow(tk.Tk):
         - create log section
         - status bar
         """
-        LoginWidget(self, self.config)
-        TicketWidget(self, self.config)
-        LogWidget(self, self.config)
+        content_frame = ttk.Frame(main_frame)
+        content_frame.pack(fill="both", expand=True)
+
+        content_frame.columnconfigure(0, weight=1)
+        content_frame.columnconfigure(1, weight=4)
+        content_frame.rowconfigure(0, weight=1)
+
+        left_frame = ttk.Frame(content_frame, padding=(0, 0, 5, 0))
+        left_frame.grid(row=0, column=0, sticky="nsew")
+
+        right_frame = ttk.Frame(content_frame, padding=(5, 0, 0, 0))
+        right_frame.grid(row=0, column=1, sticky="nsew")
+        
+        log_widget = LogWidget(right_frame, self.config)
+        self.automation = Automation(self.config, logger=log_widget.logger)
+        LoginWidget(left_frame, self.config, automation=self.automation, logger=log_widget.logger)
+        TicketWidget(left_frame, self.config, automation=self.automation, logger=log_widget.logger)
         
         
 

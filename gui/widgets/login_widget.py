@@ -6,11 +6,13 @@ from tkinter import ttk, messagebox, filedialog
 from logic.automation import Automation
 
 class LoginWidget(ttk.Frame):
-    def __init__(self, parent, config, **kwargs):
+    def __init__(self, parent, config, automation, logger=None, **kwargs):
         super().__init__(parent)
         self.parent = parent
         self.pack(fill="both", expand=True)
         self.config = config
+        self.automation = automation
+        self.logger = logger
 
         self._create()
         self.load_setting()
@@ -41,12 +43,13 @@ class LoginWidget(ttk.Frame):
 
     def clean(self):
         """Reset configuration to defaults"""
-        if messagebox.askyesno("CLean Configuration", "Are you sure you want to clean all configuration?"):
+        if messagebox.askyesno("Clean Configuration", "Are you sure you want to clean all configuration?"):
             self.username_var.set("")
             self.password_var.set("")
             self.chrome_path_var.set("")
             self.driver_path_var.set("")
-            self.log_message("Configuration clean", "info")
+            if self.logger:
+                self.logger.log_message("Configuration cleaned", "info")
     
     def login(self):
         """Perform login action"""
@@ -57,12 +60,21 @@ class LoginWidget(ttk.Frame):
 
         if not username or not password or not chrome_path or not driver_path:
             messagebox.showerror("Input Error", "All fields are required.")
+            if self.logger:
+                self.logger.log_message("Login attempt failed: missing fields", "error")
             return
         
-        success = self.parent.automation.login(username, password, chrome_path, driver_path)
+        if self.logger:
+            self.logger.log_message("Login button clicked", "info")
+
+        success, message = self.automation.login(username, password, chrome_path, driver_path)
         if success:
+            if self.logger:
+                self.logger.log_message("Login started successfully", "success")
             messagebox.showinfo("Login Required", "Please enter the verification code and OTP on the browser and complete the login process.")
         else:
+            if self.logger:
+                self.logger.log_message(f"Login failed: {message}", "error")
             messagebox.showerror("Login Failed", "Login failed. Please check your credentials and paths.")
 
     def _create(self):

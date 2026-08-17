@@ -12,6 +12,9 @@ import traceback
 import winsound
 
 from logic.exception import TicketTypeError, WTPImcompleteError
+from logic.logging import NullLogger
+
+
 class Ticket:
     def __init__(self, org_sn, record):        
         self.close_date = time.strftime("%m/%d/%Y")
@@ -20,7 +23,7 @@ class Ticket:
         self._isECN =  record[2] == "ECN"
         self._org_pn = None
         self._rma_number = None
-    
+
     @property    
     def org_pn(self):
         return self._org_pn
@@ -42,44 +45,56 @@ class Ticket:
         return self._isECN
 
     def __str__(self):
-        return f"{self._org_sn}\t{self._new_sn}\t{self._rma_number}\tclosed\t{self.close_date}\t{"f" if self.isECN else ""}\t{"Send to ECN(pass)"if self.isECN else ""}\n"
+        return (
+            f"{self._org_sn}\t{self._new_sn}\t{self._rma_number}\tclosed\t{self.close_date}\t"
+            f"{'f' if self.isECN else ''}\t{'Send to ECN(pass)' if self.isECN else ''}\n"
+        )
+
 
 class Automation:
 
-    def __init__(self, config):
+    def __init__(self, config, logger=None):
         self.config = config
         self.progress_queue = None
+        self.logger = logger if logger is not None else NullLogger()
 
     def login(self,username, password, chrome_path, driver_path):
         """
         Log in to the UCS system using provided credentials and paths.
-        
+
         Args:
             username (str): The username for login.
             password (str): The password for login.
             chrome_path (str): The path to the Chrome browser executable.
             driver_path (str): The path to the ChromeDriver executable.
-        
+
         Returns:
             webdriver.Chrome: An instance of the Chrome WebDriver after successful login.
         """
-        print("start login...")
-        isChrome = True
-        if isChrome:
-            options = webdriver.ChromeOptions()
-            options.binary_location = chrome_path
+        if self.logger:
+            self.logger.log_message("start login...", "info")
+        try:
+            isChrome = True
+            if isChrome:
+                options = webdriver.ChromeOptions()
+                options.binary_location = chrome_path
+                options.add_argument("--start-maximized")
 
-            service = Service(executable_path=driver_path)
-            self.driver = webdriver.Chrome(service=service, options=options)
-        else:
-            options = webdriver.EdgeOptions()
-            options.binary_location = chrome_path
-            service  = Service(executable_path=driver_path)
-            self.driver = webdriver.Edge(service=service, options=options)
-        self.driver.get(self.config["login_url"])  # Replace with actual UCS login URL
-        self.driver.maximize_window()
-        # Locate username and password fields and login button
+                service = Service(executable_path=driver_path)
+                self.driver = webdriver.Chrome(service=service, options=options)
+            else:
+                options = webdriver.EdgeOptions()
+                options.binary_location = chrome_path
+                service  = Service(executable_path=driver_path)
+                self.driver = webdriver.Edge(service=service, options=options)
+            self.driver.get(self.config["login_url"])  # Replace with actual UCS login URL
+            
+        except Exception as e:
+            return False, f"Error occurred while initializing WebDriver:{str(e)}"
+
         
+        # Locate username and password fields and login button
+
         wait = WebDriverWait(self.driver, self.config['page_load'])
 
         # Handle iframe if present
@@ -87,20 +102,20 @@ class Automation:
         if len(iframes) > 0:
             #self.progress_queue.put(("log", f"Found {len(iframes)} iframe(s), switching to first one...", "info"))
             self.driver.switch_to.frame(iframes[0])
-            
+
         try:
             account_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#\\2f login_username")))
             password_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "#\\2f login_pazwod")))
-            
+
             #self.progress_queue.put(("log", "Filling in credentials...", "info"))
             account_input.clear()
             account_input.send_keys(username)
             password_input.clear()
             password_input.send_keys(password)
         except Exception as login_error:
-            self.progress_queue.put(("log", f"Login form error: {login_error}", "error"))
+            if self.progress_queue is not None:
+                self.progress_queue.put(("log", f"Login form error: {login_error}", "error"))
             return False
-        
         return True
     def __check_ticket_exists(self):
         try:
@@ -113,7 +128,7 @@ class Automation:
                 return False
         except NoSuchElementException:
             # If not found, no error - ticket likely exists
-            print("Ticket found.")
+            self.logger.log_message("Ticket found.", "info")
             return True
 
     def search(self, sn):
@@ -125,7 +140,7 @@ class Automation:
             search.send_keys(Keys.ENTER)
             # if self.__check_ticket_exists() is False:
             #     raise ValueError("The ticket does not exist. Please search the Org SN# in the account Atravesar_01")
-            
+
         except Exception as search_error:
             #self.progress_queue.put(("log", f"Search error: {search_error}", "error"))
             return False
@@ -141,21 +156,20 @@ class Automation:
         memo = wait.until(EC.presence_of_element_located((By.XPATH, "/html/body/div[2]/div[3]/main/div/div[1]/div[1]/div[1]/div/div[4]/div[2]/div/span[2]/span")))
         memo.click()
         time.sleep(self.config['request_delay'])
-        problem_description = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_common.static.general.memo_repair.static.homePage.updateMemo_problemMemo")))
+        problem_description = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_common.static.general.memo_repair.static.homePage.updateMemo_repair.static.general.repairDetails_problemMemo")))
         problem_description.send_keys(msg)
         memo_submit = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_common.static.general.memo_repair.static.homePage.updateMemo_common.static.general.submit")))
         memo_submit.click()
-        
+
     def __build_ticket_based_on(self, org_sn, record):
         wait = WebDriverWait(self.driver, self.config['page_load'])
         ticket = Ticket(org_sn,record)
-        
+
         # RMA#
         rma_number_in_page_element = wait.until(EC.presence_of_element_located((By.XPATH,"//*[@id=\"root\"]/div[3]/main/div/div[1]/div[1]/div[1]/div/div[2]/div/div/p[1]")))
         rma_number_in_page = rma_number_in_page_element.text
         ticket.rma_number = rma_number_in_page
-        
-        
+
         # Org PN#
         org_pn_in_page_element = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/repair_common.static.general.repair_repair.static.repair.refurbish_orgPartNo")))
         org_pn_in_page = org_pn_in_page_element.get_attribute("value")
@@ -167,7 +181,7 @@ class Automation:
 
     def close_ticket(self, batch_list):
         if self.driver is None:
-            print("Driver not start")
+            self.logger.log_message("Driver not start", "error")
             return
         wait = WebDriverWait(self.driver, self.config['page_load'])
         # 1. Users using GUI to enter the scan org SN# and new SN# of the ticket.
@@ -176,38 +190,38 @@ class Automation:
         for record in batch_list:
             self.driver.refresh()
             org_sn, new_sn, pass_type = record
-            
+
             try:
-                # Search by New SN# 
+                # Search by New SN#
                 # If the ticket is not found, it raises an error.
-                print("Search SN#")
+                self.logger.log_message("Search SN#", "info")
                 if not self.search(new_sn) :
-                    continue 
+                    continue
 
                 wait.until(EC.invisibility_of_element_located((By.CLASS_NAME, "MuiBackdrop-root-2")))
                 # If Org SN# and the input field of ORG SN# in UCS are not matched, it raises an error.
                 iframes = self.driver.find_elements(By.TAG_NAME, "main")
                 if False:
-                    print(f"🧭 Found {len(iframes)} iframe(s), switching to the first one...")
+                    self.logger.log_message(f" Found {len(iframes)} iframe(s), switching to the first one...", "info")
                     self.driver.switch_to.default_content()
                 time.sleep(2)
                 org_sn_in_page_element = wait.until(EC.presence_of_element_located((By.ID, "/repair/operation/rma/create/repair_common.static.general.repair_repair.static.repair.refurbish_orgSn")))        
                 #org_sn_in_page_element = wait.until(EC.presence_of_element_located((By.XPATH, "/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[1]/div/div[2]/div/div/div/div[1]/div/div/div[1]/div/div/div/input")))
-                
+
                 org_sn_in_page = org_sn_in_page_element.get_attribute("value")
                 if org_sn_in_page.endswith(org_sn) is False:
-                    print(f"Org SN# mismatch for ticket {new_sn}. Expected: {org_sn}, Found: {org_sn_in_page}")
+                    self.logger.log_message(f"Org SN# mismatch for ticket {new_sn}. Expected: {org_sn}, Found: {org_sn_in_page}", "error")
                     continue
                 ticket = self.__build_ticket_based_on(org_sn_in_page, record)
 
                 if pass_type == 'Normal':
-                    print("close normal pass ticket")
+                    self.logger.log_message("Closing normal pass ticket", "info")
                     self.close_normal_ticket(ticket)
                 elif pass_type == 'ECN':
-                    print("close ecn pass ticket")
+                    self.logger.log_message("Closing ECN pass ticket", "info")
                     self.close_ecn_ticket(ticket)
                 
-                #generate log record in excel.txt   
+                #generate log record in excel.txt  
                 '''
                     - Org SN
                     - New SN
@@ -219,15 +233,14 @@ class Automation:
                     - Failure Reason (if any)
                 '''
                 time.sleep(self.config['request_delay'])  # Delay between requests
-                
-                print(f"Ticket {new_sn} processed successfully.")
+
+                self.logger.log_message(f"Ticket {new_sn} processed successfully.", "success")
                 # Add logic to verify org_sn matches and ticket type
                 # Add logic to close the ticket based on pass_type
                 # Log success or failure for each ticket
             except Exception as e:
                 # Log the exception for this ticket
-                print(f"Error processing ticket {new_sn}: {str(e)}")
-                traceback.print_exc()
+                self.logger.log_message(f"Error processing ticket {new_sn}: {str(e)}", "error")
 
     def __process_IRN(self):
         time.sleep(self.config['request_delay'])
@@ -240,7 +253,7 @@ class Automation:
         time.sleep(self.config['request_delay'])
         confirmed_ECN = False
         
-        wait = WebDriverWait(self.driver, 5)
+        wait = WebDriverWait(self.driver, 6)
     # Find the <tr> element
         row_action = self.driver.find_element(By.XPATH, "/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[1]")
         # Get the text content of the element
@@ -250,7 +263,7 @@ class Automation:
 
         # Check if "No Data" is present in the text
         if "No Data" in row_text:
-            print("The <tr> element contains 'No Data'.")
+            self.logger.log_message("The <tr> element contains 'No Data'.", "info")
             if ticket.isECN:
                 raise TicketTypeError("Ticket is not an ECN but user selected ECN.")
         else:
@@ -258,13 +271,12 @@ class Automation:
             while True:
                 try:
                     r += 1
-                    print(f"row: {r}")
                     #row_action =     self.driver.find_element(By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div/input")
                     row_type = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[2]")))
                     
-                    print(row_type.text)
+                    self.logger.log_message(f"Row {r} type: {row_type.text}", "info")
                     if "Conditional" in row_type.text:
-                        print("Do not match condition")
+                        self.logger.log_message(f"[{r}] Do not match condition", "info")
                         row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
                         row_action.click()
                         condi_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Does NOT match conditions')]")))
@@ -272,7 +284,7 @@ class Automation:
                         condi_select.click()
 
                     elif "Mandatory" in row_type.text:
-                        print("part shortage")
+                        self.logger.log_message("Part shortage found", "info")
                         row_action = wait.until(EC.presence_of_element_located((By.XPATH, f"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div/div[3]/div/div[2]/div/div/div/div[1]/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr[{r}]/td[7]/div/div")))
                         row_action.click()
                         manda_select = wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(@id, '_operations_Parts shortage')]")))
@@ -280,9 +292,9 @@ class Automation:
                         manda_select.click()
                         confirmed_ECN = True
 
-                    time.sleep(5)
+                    time.sleep(7)
                 except TimeoutException:
-                    print("ECN Part done")
+                    self.logger.log_message("ECN Part done", "info")
                     break
             if confirmed_ECN != ticket.isECN:
                 raise TicketTypeError(f"User Select:{" ECN " if ticket.isECN else " Normal "}, System shows:{" ECN " if confirmed_ECN else " Normal " }" )
@@ -365,17 +377,24 @@ class Automation:
 
 
     def __submit_finaltest(self,ticket):
-        time.sleep(6)
+        time.sleep(8)
         wait = WebDriverWait(self.driver, self.config['page_load'])
-        
+        wait_wtp = WebDriverWait(self.driver, 10)
 
         if not ticket.isECN:
             # Check if WTP is finished
-            system_check = wait.until(EC.presence_of_element_located((By.XPATH,"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div[2]/div/div/div/div[1]/div/div/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr/td[6]/div/div/p")))
-            if "Not Finished" in system_check.text:
-                print("WTP Not finish")
-                raise WTPImcompleteError("WTP Not finish")
-
+            try:
+                system_check = wait_wtp.until(EC.presence_of_element_located((By.XPATH,"/html/body/div[2]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[1]/div[2]/div/div/div/div[1]/div/div/div/div/div/div[1]/div[2]/div/div/div/table/tbody/tr/td[6]/div/div/p")))
+                if "Not Finished" in system_check.text:
+                    self.logger.log_message("WTP Not finish", "error")
+                    raise WTPImcompleteError("WTP Not finish")
+            except TimeoutException:
+                self.logger.log_message("There is no WTP requirement, proceed to confirm result.", "warning")
+                reference_log_check = wait_wtp.until(EC.presence_of_element_located((By.XPATH,"//*[@id=\"root\"]/div[3]/main/div/div[2]/div[2]/div/div/div/div/div[2]/div[2]/div/div/div/div[1]/div/div/div/div[1]/div/div[1]/p")))
+                if "WTP" not in reference_log_check.text:
+                    self.logger.log_message("No WTP Report found, proceed to confirm result.", "error")
+                    raise WTPImcompleteError("WTP Not finish")
+                
         confirm = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/finaltest_repair.static.general.finalTest_repair.static.finalTest.toDoTask_repair.static.finalTest.confirmResult")))
         confirm.click()
         time.sleep(1)
@@ -386,7 +405,6 @@ class Automation:
 
         no = wait.until(EC.presence_of_element_located((By.ID,"/repair/operation/rma/create/finaltest_Process Check_common.static.general.no")))
         no.click()
-        
         pass
 
     def close_normal_ticket(self, ticket):
@@ -397,11 +415,11 @@ class Automation:
             self.__submit_repair()
             self.__submit_finaltest(ticket)
             self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
-            winsound.PlaySound("SystemExit", winsound.SND_ALIAS) # Sound for Success
+            winsound.PlaySound("SystemExit", winsound.SND_ALIAS)    
         except Exception as e:
-            print(f"Excel update String:\n {str(ticket)}\n\n")
-            print(f"Error closing normal ticket {ticket._new_sn}: {str(e)}")
-            winsound.PlaySound("SystemHand", winsound.SND_ALIAS) # Sound for Error
+            self.logger.log_message(f"Error closing normal ticket : {str(e)}", "error")
+            self.logger.log_message(f"Clipboard Backup :\n{ticket._new_sn}", "warning")
+            winsound.PlaySound("SystemHand", winsound.SND_ALIAS)
     # Delay between requests
     def close_ecn_ticket(self, ticket):
         try:
@@ -412,11 +430,12 @@ class Automation:
             self.__submit_repair()
             self.__submit_finaltest(ticket)
             self.__append_record_to_excel_txt(ticket,"./EXCEL.txt")
-            winsound.PlaySound("SystemExit", winsound.SND_ALIAS) # Sound for Success
+            winsound.PlaySound("SystemExit", winsound.SND_ALIAS)   
         except Exception as e:
-            print(f"Excel update String:\n {str(ticket)}\n\n")
-            print(f"Error closing ECN ticket {ticket._new_sn}: {str(e)}")
-            winsound.PlaySound("SystemHand", winsound.SND_ALIAS) # Sound for Error
+            self.logger.log_message(f"Error closing normal ticket : {str(e)}", "error")
+            self.logger.log_message(f"Clipboard Backup :\n{ticket._new_sn}", "warning")
+            winsound.PlaySound("SystemHand", winsound.SND_ALIAS)
+
 
 
         '''
@@ -469,4 +488,3 @@ class Automation:
                 - Reason (if any)
 
         '''
-
